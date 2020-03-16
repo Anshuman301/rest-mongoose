@@ -1,26 +1,42 @@
 const express = require('express')
 require('./utils/db')
 const User = require('./utils/db')
+const auth = require('./middleware/auth')
 const app  = express();
 app.use(express.json())
-app.listen(3000)
 app.post('/users', async (req,res) => {
     const user = new User(req.body)
     try{
-        await user.save()
-        res.status(201).send(user)
+       const token =  await user.generateAuthToken()
+        res.status(201).send({user,token})
     }catch(e){
         res.status(400).send(e.message)
     }
 })
 
-app.get('/users', async (req,res) => {
+app.post('/users/login',async (req,res) => {
+    try {
+        const user = await User.findByCredentials(req.body.email,req.body.password)
+        const token = await user.generateAuthToken()
+        res.status(200).send({user,token})
+    }catch(e){
+        res.status(400).send(e)
+    }
+})
+app.get('/users/me',auth ,async (req,res) => {
     try{
-        const users = await User.find({})
-        if(!users)
-        return res.status(404).send()
-        res.status(200).send(users)
+        res.status(200).send(req.user)
+    }catch(e){
+        res.status(500).send()
+    }
+})
 
+app.get('/users/logout',auth,async (req,res) =>{
+    try{
+        // req.user.tokens = req.user.tokens.filter(token => token.token !== req.token)
+        req.user.tokens = []
+        await req.user.save();
+        res.status(200).send(req.user)
     }catch(e){
         res.status(500).send()
     }
@@ -59,3 +75,4 @@ app.delete('/users/:id',async (req,res) => {
         res.status(500).send(e.message)
     }
 })
+app.listen(3000)
